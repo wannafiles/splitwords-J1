@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Split Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* カスタムスタイル */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        /* 画面最大化の適用 (Req 5 & ユーザー要望1) */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f3f4f6; 
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden; 
+        }
+        
+        .puzzle-area { min-height: 6rem; } 
+        
+        /* 単語パーツの共通スタイル */
+        .word-part, .completed-word, .translation-part, .theme-item {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-width: 4px; 
+            border-style: solid; 
+            border-color: transparent;
+        }
+        
+        /* 選択状態のスタイル */
+        .selected { 
+            box-shadow: 0 6px 12px rgba(79, 70, 229, 0.7); 
+            border-color: rgb(79, 70, 229) !important; /* indigo-600 */
+        }
+        
+        .correct-slot { background-color: #34d399 !important; } /* Tailwind green-400 */
+        .incorrect-slot { background-color: #f87171 !important; } /* Tailwind red-400 */
+        .incorrect-part-temp { background-color: #fca5a5 !important; } /* Tailwind red-300 */
+
+        /* ターゲットスロットのスタイル調整 (Step 1) */
+        .target-slot {
+            transition: background-color 0.2s;
+            line-height: 5rem; 
+            font-weight: 900; 
+        }
+        
+        /* ゲームクリア/オーバー時のメッセージ表示用 */
+        .final-message {
+            /* スコアを完成ペアの下に移動するため、スタイルを調整 */
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 1.5rem; 
+            font-weight: 700;
+            text-align: center;
+        }
+
+        /* ユーザー要望2: マイナスマージンを適用して上部の隙間を最小化 */
+        .negative-mt-4 { margin-top: -1rem; } 
+        
+        /* Tema List specific */
+        .theme-item {
+            border-left-width: 8px;
+            border-left-style: solid;
+            border-left-color: #4f46e5;
+        }
+
+        .required-label::after {
+            content: " *";
+            color: #ef4444; /* red-500 */
+            margin-left: 0.25rem;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen overflow-hidden bg-gray-50 text-gray-800 antialiased p-4 sm:p-8 flex items-start justify-center">
+
+    <div id="game-container" class="w-full h-full mx-auto bg-white p-6 sm:p-10 rounded-3xl shadow-2xl border border-gray-100 flex flex-col space-y-4 max-w-7xl overflow-y-auto">
+        
+        <div id="control-area" class="flex flex-col items-center justify-center">
+            <h1 id="game-title" class="text-5xl sm:text-6xl font-black text-indigo-800 mb-6 text-center">Word Split Challenge</h1>
+        </div>
+        
+        <div id="home-view" class="space-y-6">
+            <h2 class="text-3xl font-bold text-gray-700">テーマ選択 (ローカル保存)</h2>
+
+            <div id="theme-list" class="flex flex-col space-y-3 p-4 bg-gray-50 rounded-xl min-h-40 shadow-inner">
+                <p class="text-gray-500 text-center py-10" id="loading-message">テーマをロード中...</p>
+                </div>
+            
+            <div id="question-count-setting" class="p-4 bg-indigo-50 rounded-xl shadow-inner border-t-4 border-indigo-400">
+                <label for="question-limit" class="block text-lg font-bold text-gray-700">出題数 (問題)</label>
+                <input type="number" id="question-limit" min="5" value="10" class="w-full p-3 border border-gray-300 rounded-lg text-2xl focus:ring-indigo-500 focus:border-indigo-500">
+                <p id="max-question-info" class="text-sm text-gray-500 mt-1">最大出題数: 0 (選択したテーマに依存)</p>
+            </div>
+
+            <div class="flex flex-col space-y-4">
+                <button id="start-selected-theme-button" class="px-6 py-3 bg-green-600 text-white text-xl font-extrabold rounded-xl shadow-md hover:bg-green-700 transition duration-150" disabled>
+                    選択したテーマでスタート
+                </button>
+                <button id="new-theme-button" class="px-6 py-3 bg-indigo-600 text-white text-xl font-extrabold rounded-xl shadow-md hover:bg-indigo-700 transition duration-150">
+                    新しいテーマを作成
+                </button>
+            </div>
+            
+             <p class="text-sm text-gray-500 pt-4 text-center">このデータはあなたのブラウザに保存されます。</p>
+        </div>
+
+        <div id="theme-manager-view" class="space-y-6" style="display: none;">
+            <h2 id="manager-title" class="text-3xl font-bold text-gray-700">新しいテーマを作成</h2>
+            
+            <div class="space-y-4 p-4 bg-gray-100 rounded-xl shadow-lg">
+
+                <label for="theme-name" class="block text-lg font-medium text-gray-700 required-label">テーマ名</label>
+                <input type="text" id="theme-name" class="w-full p-3 border border-gray-300 rounded-lg text-2xl focus:ring-indigo-500 focus:border-indigo-500" placeholder="例: ハロウィン単語, 動物の名前">
+                <p id="word-count-info" class="text-sm text-gray-500 text-right">単語数: 0 / 最小5単語</p>
+                
+                <div class="space-y-4 p-4 bg-purple-50 rounded-xl shadow-lg border-t-4 border-purple-400">
+                    <h3 class="text-xl font-bold text-purple-700 flex items-center">
+                        📋 リスト一括取り込み
+                    </h3>
+                    <p class="text-sm text-gray-600">
+                        外部リストをここに貼り付けて、一括で単語を追加できます。<br>
+                        形式: <code>Part1,Part2,日本語訳</code> または <code>FULLWORD,日本語訳</code> (自動で中央付近で分割されます)
+                    </p>
+                    <textarea id="import-list-textarea" class="w-full p-3 border border-gray-300 rounded-lg h-32 focus:ring-purple-500 focus:border-purple-500 text-sm" placeholder="ここにリストを貼り付けてください..."></textarea>
+                    <button id="import-list-button" class="w-full p-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition duration-150" disabled>
+                        リストに取り込み実行
+                    </button>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-inner space-y-3 border-t-4 border-indigo-400">
+                    <h3 class="text-xl font-semibold text-gray-700">単語個別追加フォーム</h3>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 required-label">前半 (Part 1)</label>
+                            <input type="text" id="input-part1" class="w-full p-2 border rounded-lg text-lg" placeholder="例: JACK-O'">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 required-label">後半 (Part 2)</label>
+                            <input type="text" id="input-part2" class="w-full p-2 border rounded-lg text-lg" placeholder="例: LANTERN">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 required-label">日本語訳</label>
+                            <input type="text" id="input-translation" class="w-full p-2 border rounded-lg text-lg" placeholder="例: ジャック・オー・ランタン">
+                        </div>
+                    </div>
+                    <button id="add-word-button" class="w-full p-2 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition duration-150" disabled>
+                        リストに追加
+                    </button>
+                </div>
+                
+                <h3 class="text-xl font-semibold text-gray-700 pt-3">現在の単語リスト</h3>
+                <div id="word-list-editor" class="flex flex-col space-y-2 bg-white p-3 rounded-lg min-h-24 max-h-60 overflow-y-auto">
+                    <p class="text-gray-400 text-center py-2">単語がありません</p>
+                </div>
+            </div>
+
+            <div class="flex justify-between space-x-4">
+                <button id="back-to-home-button" class="px-6 py-3 bg-gray-500 text-white text-xl font-extrabold rounded-xl shadow-md hover:bg-gray-600 transition duration-150 flex-1">
+                    ホームに戻る
+                </button>
+                <button id="save-theme-button" class="px-6 py-3 bg-pink-600 text-white text-xl font-extrabold rounded-xl shadow-md hover:bg-pink-700 transition duration-150 flex-1" disabled>
+                    テーマを保存
+                </button>
+            </div>
+        </div>
+
+        <div id="game-view" style="display: none;">
+
+            <div id="step-1-content" class="negative-mt-4">
+                <div id="parts-area" class="puzzle-area flex flex-wrap gap-4 justify-center items-center p-4 bg-gray-50 rounded-xl shadow-inner mb-4">
+                    </div>
+
+                <div class="flex flex-col items-center">
+                    <div id="target-box" class="flex flex-wrap justify-center">
+                        <div class="target-slot w-full md:w-64 h-24 sm:h-32 bg-gray-200 rounded-l-xl border-4 border-dashed border-gray-400 border-r-0 flex items-center justify-center text-5xl sm:text-7xl font-extrabold text-gray-700" data-slot="1">...</div>
+                        <div class="target-slot w-full md:w-64 h-24 sm:h-32 bg-gray-200 rounded-r-xl border-4 border-dashed border-gray-400 border-l-0 flex items-center justify-center text-5xl sm:text-7xl font-extrabold text-gray-700" data-slot="2">...</div>
+                    </div>
+                </div>
+                
+                <div id="completed-words" style="display: none;">
+                </div>
+            </div>
+
+            <div id="step-2-section" style="display: none;" class="negative-mt-4">
+                
+                <div id="game-score-board" class="final-message flex flex-col justify-around items-center p-6 bg-orange-100 rounded-xl shadow-lg mb-8" style="display: none;">
+                    <p class="text-2xl sm:text-3xl font-semibold text-gray-700 pt-3">最終ミス回数: <span id="final-miss-display" class="text-5xl sm:text-6xl text-red-600 font-bold">0</span>回</p>
+                </div>
+                
+                <div id="step2-pair-area" class="flex flex-col md:flex-row gap-4 mb-4">
+                    
+                    <div id="english-word-container" class="md:w-1/2 flex flex-col space-y-2 p-3 bg-yellow-100 rounded-xl shadow-md">
+                        <div id="completed-words-step2" class="puzzle-area flex flex-wrap gap-2 justify-center items-center p-3 bg-yellow-400 rounded-xl shadow-lg">
+                            </div>
+                    </div>
+
+                    <div id="japanese-translation-container" class="md:w-1/2 flex flex-col space-y-2 p-3 bg-green-100 rounded-xl shadow-md">
+                        <div id="translation-area" class="puzzle-area flex flex-wrap gap-2 justify-center items-center p-3 bg-green-500 rounded-xl shadow-lg">
+                            </div>
+                    </div>
+                </div>
+                
+                <div id="final-pairs-display" class="mt-4 flex flex-col space-y-3">
+                    </div>
+
+                <div id="final-score-container" class="mt-8"></div>
+            </div>
+
+            <div id="game-button-wrapper" class="flex justify-center pt-6">
+                <button id="game-action-button" class="px-12 py-5 bg-indigo-600 text-white text-3xl sm:text-5xl font-extrabold rounded-full shadow-xl hover:bg-indigo-700 transition duration-150 w-full max-w-sm">
+                    ホームへ
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="feedback-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
+        <div id="feedback-content" class="px-10 py-6 rounded-2xl text-white text-6xl font-black shadow-2xl transform scale-105 transition-transform duration-300">
+        </div>
+    </div>
+
+
+    <script>
+        // ----------------------------------------------------------------
+        // 1. ローカルストレージ設定
+        // ----------------------------------------------------------------
+        const LOCAL_STORAGE_KEY = 'word_split_challenge_themes';
+
+        // ----------------------------------------------------------------
+        // NEW: デフォルトテーマデータ (中1英単語セット)
+        // ----------------------------------------------------------------
+        // 単語は自動分割ロジック (単語長/2を切り捨て) に基づいて分割されています
+        const DEFAULT_THEME_DATA = {
+            id: 'default_chu1_eigo',
+            name: '中1英単語セット',
+            createdAt: new Date().toISOString(),
+            words: [
+                { part1: 'YOUR', part2: 'SELF', translation: 'あなた自身' },
+                { part1: 'FLO', part2: 'WER', translation: '花' },
+                { part1: 'CHA', part2: 'NCE', translation: '機会' },
+                { part1: 'SCI', part2: 'ENCE', translation: '科学' },
+                { part1: 'CIT', part2: 'IZEN', translation: '市民' },
+                { part1: 'SUP', part2: 'PER', translation: '夕食' },
+                { part1: 'FAT', part2: 'HER', translation: '父' },
+                { part1: 'BRO', part2: 'THER', translation: '兄弟' },
+                { part1: 'MYS', part2: 'ELF', translation: '私自身を' },
+                { part1: 'YEST', part2: 'ERDAY', translation: '昨日' },
+                { part1: 'LIB', part2: 'RARY', translation: '図書館' },
+                { part1: 'ARR', part2: 'IVE', translation: '到着する' },
+                { part1: 'DECE', part2: 'MBER', translation: '１２月' },
+                { part1: 'NOTE', part2: 'BOOK', translation: 'ノート' },
+                { part1: 'O’C', part2: 'LOCK', translation: '～時' },
+                { part1: 'GUI', part2: 'TAR', translation: 'ギター' },
+                { part1: 'PRE', part2: 'SENT', translation: 'プレゼント' },
+                { part1: 'MOR', part2: 'NING', translation: '朝' },
+                { part1: 'HOME', part2: 'WORK', translation: '宿題' },
+                { part1: 'MIN', part2: 'UTE', translation: '分，ちょっとの間' },
+                { part1: 'CHU', part2: 'RCH', translation: '教会' },
+                { part1: 'TOGE', part2: 'THER', translation: '一緒に' },
+                { part1: 'LET', part2: 'TER', translation: '手紙' },
+                { part1: 'SUN', part2: 'DAY', translation: '日曜日' },
+                { part1: 'THE', part2: 'IRS', translation: '彼(女)らのもの' },
+                { part1: 'WEDN', part2: 'ESDAY', translation: '水曜日' },
+                { part1: 'BASKE', part2: 'TBALL', translation: 'バスケットボール' },
+                { part1: 'COMP', part2: 'UTER', translation: 'コンピュータ' },
+                { part1: 'SUB', part2: 'JECT', translation: '科目，題目' },
+                { part1: 'OCT', part2: 'OBER', translation: '１０月' },
+                { part1: 'WEA', part2: 'THER', translation: '天気' },
+                { part1: 'DAN', part2: 'GER', translation: '危険' },
+                { part1: 'PEN', part2: 'CIL', translation: '鉛筆' },
+                { part1: 'JAPA', part2: 'NESE', translation: '日本語' },
+                { part1: 'SOC', part2: 'CER', translation: 'サッカー' },
+                { part1: 'TEA', part2: 'CHER', translation: '先生' },
+                { part1: 'ITS', part2: 'ELF', translation: 'それ自身' },
+                { part1: 'INTER', part2: 'ESTING', translation: '興味深い' },
+                { part1: 'FRI', part2: 'DAY', translation: '金曜日' },
+                { part1: 'HOSP', part2: 'ITAL', translation: '病院' },
+                { part1: 'AME', part2: 'RICA', translation: 'アメリカ合衆国' },
+                { part1: 'HUN', part2: 'GRY', translation: '空腹の' },
+                { part1: 'NOT', part2: 'HING', translation: '何も～ない' },
+                { part1: 'BIRT', part2: 'HDAY', translation: '誕生日' },
+                { part1: 'SATU', part2: 'RDAY', translation: '土曜日' },
+                { part1: 'FRI', part2: 'END', translation: '友人' },
+                { part1: 'FEBR', part2: 'UARY', translation: '２月' },
+                { part1: 'HIM', part2: 'SELF', translation: '彼自身' },
+                { part1: 'BREA', part2: 'KFAST', translation: '朝食' },
+                { part1: 'FAM', part2: 'ILY', translation: '家族' },
+                { part1: 'DAUG', part2: 'HTER', translation: '娘' },
+                { part1: 'SIS', part2: 'TER', translation: '姉妹' },
+                { part1: 'CAR', part2: 'EFUL', translation: '注意深い' },
+                { part1: 'COL', part2: 'LECT', translation: '集める' },
+                { part1: 'MON', part2: 'DAY', translation: '月曜日' },
+                { part1: 'SOME', part2: 'TIMES', translation: '時々' },
+                { part1: 'JAN', part2: 'UARY', translation: '１月' },
+                { part1: 'SEA', part2: 'SON', translation: '季節' },
+                { part1: 'HON', part2: 'EST', translation: '正直な' },
+                { part1: 'VIL', part2: 'LAGE', translation: '村' },
+                { part1: 'TEN', part2: 'NIS', translation: 'テニス' },
+                { part1: 'DIN', part2: 'NER', translation: '夕食' },
+                { part1: 'TUE', part2: 'SDAY', translation: '火曜日' },
+                { part1: 'NOVE', part2: 'MBER', translation: '１１月' },
+                { part1: 'SUM', part2: 'MER', translation: '夏' },
+                { part1: 'NUM', part2: 'BER', translation: '数' },
+                { part1: 'SCH', part2: 'OOL', translation: '学校' },
+                { part1: 'FAVO', part2: 'RITE', translation: '一番好きな' },
+                { part1: 'ALW', part2: 'AYS', translation: 'いつも' },
+                { part1: 'KIT', part2: 'CHEN', translation: '台所' },
+                { part1: 'CAN', part2: 'ADA', translation: 'カナダ' },
+                { part1: 'NOB', part2: 'ODY', translation: 'だれも～ない' },
+                { part1: 'TOMO', part2: 'RROW', translation: '明日' },
+                { part1: 'SPR', part2: 'ING', translation: '春' },
+                { part1: 'AUSTRA', part2: 'LIA', translation: 'オーストラリア' },
+                { part1: 'SOME', part2: 'THING', translation: '何か' },
+                { part1: 'AUG', part2: 'UST', translation: '８月' },
+                { part1: 'ANI', part2: 'MAL', translation: '動物' },
+                { part1: 'AFTE', part2: 'RNOON', translation: '午後' },
+                { part1: 'OFF', part2: 'ICE', translation: '事務所' },
+                { part1: 'MOT', part2: 'HER', translation: '母' },
+                { part1: 'WIN', part2: 'DOW', translation: '窓' },
+                { part1: 'SLO', part2: 'WLY', translation: 'ゆっくりと' },
+                { part1: 'LIT', part2: 'TLE', translation: '小さい，幼い，ちょっとした' },
+                { part1: 'HER', part2: 'SELF', translation: '彼女自身' },
+                { part1: 'WIN', part2: 'TER', translation: '冬' },
+                { part1: 'THUR', part2: 'SDAY', translation: '木曜日' },
+                { part1: 'EVERY', part2: 'THING', translation: 'すべてのもの' },
+                { part1: 'O’C', part2: 'LOCK', translation: '～時' },
+                { part1: 'PIC', part2: 'TURE', translation: '絵，写真' },
+                { part1: 'FRIE', part2: 'NDLY', translation: '親しみやすい' },
+                { part1: 'STU', part2: 'DENT', translation: '学生' },
+                { part1: 'SEPT', part2: 'EMBER', translation: '９月' },
+                { part1: 'STA', part2: 'TION', translation: '駅' },
+                { part1: 'FAM', part2: 'OUS', translation: '有名な' },
+                { part1: 'BASE', part2: 'BALL', translation: '野球' },
+                { part1: 'DOC', part2: 'TOR', translation: '医者' },
+                { part1: 'ORA', part2: 'NGE', translation: 'オレンジ' },
+                { part1: 'EVERY', part2: 'BODY', translation: 'だれでもみな' },
+                { part1: 'SOM', part2: 'EONE', translation: 'だれか' },
+                { part1: 'USU', part2: 'ALLY', translation: 'ふつう' },
+                { part1: 'RAC', part2: 'KET', translation: 'ラケット' },
+                { part1: 'SEC', part2: 'OND', translation: '２日' },
+                { part1: 'ALR', part2: 'EADY', translation: 'すでに' },
+                { part1: 'EVERY', part2: 'ONE', translation: 'みんな' },
+                { part1: 'GAR', part2: 'DEN', translation: '庭' },
+                { part1: 'STR', part2: 'ONG', translation: '強い，じょうぶな' },
+                { part1: 'EVE', part2: 'NING', translation: '晩' },
+                { part1: 'PLA', part2: 'YER', translation: '選手，演奏者' },
+                { part1: 'PEO', part2: 'PLE', translation: '人々' },
+                { part1: 'BEAU', part2: 'TIFUL', translation: '美しい' },
+                { part1: 'CAM', part2: 'ERA', translation: 'カメラ' },
+                { part1: 'POP', part2: 'ULAR', translation: '人気のある' },
+                { part1: 'ENG', part2: 'LISH', translation: '英語' },
+                { part1: 'THEMSE', part2: 'LVES', translation: '彼(女)ら自身' },
+                { part1: 'COU', part2: 'NTRY', translation: '国，いなか，地方' },
+                { part1: 'PAR', part2: 'ENT', translation: '親' },
+                { part1: 'OURS', part2: 'ELVES', translation: '私たち自身を' },
+                { part1: 'JUN', part2: 'IOR', translation: '年下の，下級の' },
+                { part1: 'QUES', part2: 'TION', translation: '質問' },
+                { part1: 'AUT', part2: 'UMN', translation: '秋' },
+                { part1: 'SIN', part2: 'GER', translation: '歌手' },
+            ]
+        };
+
+
+        // ----------------------------------------------------------------
+        // 2. DOM要素とアプリケーション状態
+        // ----------------------------------------------------------------
+
+        // UI Views
+        const homeView = document.getElementById('home-view');
+        const themeManagerView = document.getElementById('theme-manager-view');
+        const gameView = document.getElementById('game-view');
+        const managerTitle = document.getElementById('manager-title');
+        const gameTitle = document.getElementById('game-title'); 
+
+        // Home Elements
+        const themeList = document.getElementById('theme-list');
+        const startSelectedThemeButton = document.getElementById('start-selected-theme-button');
+        const newThemeButton = document.getElementById('new-theme-button');
+        const loadingMessage = document.getElementById('loading-message'); 
+        // Question Limit Elements
+        const questionLimitInput = document.getElementById('question-limit');
+        const maxQuestionInfo = document.getElementById('max-question-info');
+
+        // Manager Elements
+        const themeNameInput = document.getElementById('theme-name');
+        const inputPart1 = document.getElementById('input-part1');
+        const inputPart2 = document.getElementById('input-part2');
+        const inputTranslation = document.getElementById('input-translation');
+        const addWordButton = document.getElementById('add-word-button');
+        const wordListEditor = document.getElementById('word-list-editor');
+        const saveThemeButton = document.getElementById('save-theme-button');
+        const backToHomeButton = document.getElementById('back-to-home-button');
+        const wordCountInfo = document.getElementById('word-count-info');
+        
+        // Import Elements
+        const importListTextarea = document.getElementById('import-list-textarea');
+        const importListButton = document.getElementById('import-list-button');
+
+
+        // Game Elements (既存)
+        const partsArea = document.getElementById('parts-area');
+        const targetSlots = document.querySelectorAll('.target-slot');
+        const completedWordsAreaStep1 = document.getElementById('completed-words');
+        const completedWordsAreaStep2 = document.getElementById('completed-words-step2'); 
+        const translationArea = document.getElementById('translation-area');
+        const gameActionButton = document.getElementById('game-action-button');
+        const gameButtonWrapper = document.getElementById('game-button-wrapper'); 
+        const gameScoreBoard = document.getElementById('game-score-board');
+        const finalMissDisplay = document.getElementById('final-miss-display');
+        const step1Content = document.getElementById('step-1-content');
+        const step2Section = document.getElementById('step-2-section');
+        const finalPairsDisplay = document.getElementById('final-pairs-display');
+        const step2PairArea = document.getElementById('step2-pair-area'); 
+        const finalScoreContainer = document.getElementById('final-score-container'); 
+
+        // Feedback
+        const feedbackOverlay = document.getElementById('feedback-overlay');
+        const feedbackContent = document.getElementById('feedback-content');
+
+
+        // アプリケーション状態
+        let currentView = 'home';
+        let allThemes = []; 
+        let selectedTheme = null; 
+        let editingTheme = { id: null, name: '', words: [] }; 
+        let questionLimit = 10; 
+        
+        // ゲーム状態
+        let gameWordData = []; 
+        let misses = 0; 
+        let completedCount = 0; 
+        let step2MatchCount = 0; 
+        let isGameActive = false;
+        let isChecking = false; 
+        let slottedParts = [null, null]; 
+
+
+        // ----------------------------------------------------------------
+        // 3. UI/View 制御 & ユーティリティ
+        // ----------------------------------------------------------------
+
+        function setView(view) {
+            currentView = view;
+            homeView.style.display = 'none';
+            themeManagerView.style.display = 'none';
+            gameView.style.display = 'none';
+            
+            // Req 1: タイトル表示の制御
+            if (view === 'game') {
+                gameTitle.style.display = 'none';
+            } else {
+                gameTitle.style.display = 'block';
+            }
+
+            if (view === 'home') {
+                homeView.style.display = 'block';
+                selectedTheme = null;
+                startSelectedThemeButton.disabled = true;
+                loadThemes(); 
+            } else if (view === 'manager') {
+                themeManagerView.style.display = 'block';
+                // テキストエリアをクリア
+                importListTextarea.value = ''; 
+                importListButton.disabled = true;
+                updateManagerUI();
+            } else if (view === 'game') {
+                gameView.style.display = 'block';
+            }
+        }
+        
+        function logFeedback(text, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${text}`);
+        }
+        
+        function showFeedback(message, type) {
+            feedbackContent.className = 'px-10 py-6 rounded-2xl text-white text-6xl font-black shadow-2xl transform scale-105 transition-transform duration-300';
+            
+            if (type === 'success') {
+                feedbackContent.textContent = '✅ ' + message;
+                feedbackContent.classList.add('bg-green-600');
+            } else if (type === 'error') {
+                feedbackContent.textContent = '❌ ' + message;
+                feedbackContent.classList.add('bg-red-600');
+            }
+            
+            feedbackOverlay.classList.remove('opacity-0', 'pointer-events-none');
+            
+            setTimeout(() => {
+                feedbackOverlay.classList.add('opacity-0', 'pointer-events-none');
+            }, 1500);
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+
+        // ----------------------------------------------------------------
+        // 4. テーマの永続化 (localStorage)
+        // ----------------------------------------------------------------
+
+        function generateUniqueId() {
+            return 'theme_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        }
+
+        function saveThemesToLocal() {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(allThemes));
+                logFeedback('Themes successfully saved to localStorage.', 'local');
+            } catch (e) {
+                logFeedback(`Error saving to localStorage: ${e.message}`, 'error');
+                showFeedback('データの保存に失敗しました。', 'error');
+            }
+        }
+
+        function loadThemes() {
+            loadingMessage.style.display = 'block';
+            loadingMessage.textContent = 'テーマをロード中...';
+            
+            try {
+                const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+                allThemes = data ? JSON.parse(data) : [];
+                
+                // NEW: Default Theme Check and Initialization
+                const defaultThemeExists = allThemes.some(t => t.id === DEFAULT_THEME_DATA.id);
+                
+                if (!defaultThemeExists) {
+                    // Add the default theme to the start of the list
+                    allThemes.unshift(DEFAULT_THEME_DATA); 
+                    // Save the updated list with the new default theme
+                    saveThemesToLocal(); 
+                    logFeedback('Default theme "中1英単語セット" added and saved.', 'local');
+                }
+                
+                logFeedback(`Loaded ${allThemes.length} themes from localStorage.`, 'local');
+            } catch (e) {
+                logFeedback(`Error loading from localStorage: ${e.message}`, 'error');
+                allThemes = [DEFAULT_THEME_DATA]; // Fallback to only the default theme
+                saveThemesToLocal(); 
+                showFeedback('データのロード中にエラーが発生しました。デフォルトテーマで開始します。', 'error');
+            }
+            
+            loadingMessage.style.display = 'none';
+            updateThemeListUI();
+        }
+        
+        function saveTheme(theme) {
+            if (!theme.id) {
+                theme.id = generateUniqueId();
+                theme.createdAt = new Date().toISOString();
+                allThemes.push(theme);
+                showFeedback('新しいテーマを保存しました', 'success');
+            } 
+            else {
+                const index = allThemes.findIndex(t => t.id === theme.id);
+                if (index !== -1) {
+                    theme.updatedAt = new Date().toISOString();
+                    allThemes[index] = theme;
+                    showFeedback('テーマを更新しました', 'success');
+                } else {
+                    showFeedback('テーマの更新に失敗しました。', 'error');
+                    return;
+                }
+            }
+            
+            saveThemesToLocal(); 
+            setView('home'); 
+        }
+
+        function deleteTheme(themeId) {
+            const initialLength = allThemes.length;
+            allThemes = allThemes.filter(t => t.id !== themeId);
+            
+            if (allThemes.length < initialLength) {
+                saveThemesToLocal(); 
+                showFeedback('テーマを削除しました', 'success');
+            } else {
+                 showFeedback('テーマが見つかりませんでした。', 'error');
+            }
+            updateThemeListUI(); 
+        }
+
+        // ----------------------------------------------------------------
+        // 5. Theme Manager UI 制御
+        // ----------------------------------------------------------------
+        
+        function setupNewTheme() {
+            editingTheme = { id: null, name: '', words: [] };
+            managerTitle.textContent = '新しいテーマを作成';
+            themeNameInput.value = '';
+            inputPart1.value = '';
+            inputPart2.value = '';
+            inputTranslation.value = '';
+            importListTextarea.value = ''; 
+            updateManagerUI();
+        }
+
+        function editExistingTheme(theme) {
+            editingTheme = JSON.parse(JSON.stringify(theme)); 
+            managerTitle.textContent = `テーマを編集: ${theme.name}`;
+            themeNameInput.value = theme.name;
+            importListTextarea.value = ''; 
+            updateManagerUI();
+            setView('manager');
+        }
+
+        function updateManagerUI() {
+            wordListEditor.innerHTML = '';
+            if (editingTheme.words.length === 0) {
+                wordListEditor.innerHTML = '<p class="text-gray-400 text-center py-2">単語がありません</p>';
+            } else {
+                editingTheme.words.forEach((word, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center p-2 bg-indigo-50 rounded-lg';
+                    div.innerHTML = `
+                        <span class="text-sm font-medium text-gray-700">${word.part1} | ${word.part2} = ${word.translation}</span>
+                        <button data-index="${index}" class="remove-word-btn text-red-500 hover:text-red-700 font-bold px-2">削除</button>
+                    `;
+                    wordListEditor.appendChild(div);
+                });
+                wordListEditor.querySelectorAll('.remove-word-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => removeWordFromTheme(parseInt(e.target.dataset.index)));
+                });
+            }
+            
+            wordCountInfo.textContent = `単語数: ${editingTheme.words.length} / 最小5単語`;
+
+            const isValid = themeNameInput.value.trim() !== '' && editingTheme.words.length >= 5;
+            saveThemeButton.disabled = !isValid;
+        }
+        
+        // 単語個別追加フォームの制御
+        [themeNameInput, inputPart1, inputPart2, inputTranslation].forEach(input => {
+            input.addEventListener('input', () => {
+                const part1 = inputPart1.value.trim();
+                const part2 = inputPart2.value.trim();
+                const trans = inputTranslation.value.trim();
+                addWordButton.disabled = !(part1 && part2 && trans);
+                
+                editingTheme.name = themeNameInput.value.trim();
+                updateManagerUI(); 
+            });
+        });
+
+        function addWordToTheme() {
+            const part1 = inputPart1.value.trim().toUpperCase();
+            const part2 = inputPart2.value.trim().toUpperCase();
+            const translation = inputTranslation.value.trim();
+            
+            if (part1 && part2 && translation) {
+                editingTheme.words.push({ part1, part2, translation });
+                
+                inputPart1.value = '';
+                inputPart2.value = '';
+                inputTranslation.value = '';
+                addWordButton.disabled = true;
+                
+                updateManagerUI();
+            }
+        }
+        
+        function removeWordFromTheme(index) {
+            editingTheme.words.splice(index, 1);
+            updateManagerUI();
+        }
+        
+        // リスト一括取り込み機能 (自動分割ロジック込み)
+        importListTextarea.addEventListener('input', () => {
+            importListButton.disabled = importListTextarea.value.trim() === '';
+        });
+
+        function handleImportList() {
+            const rawText = importListTextarea.value.trim();
+            if (!rawText) return;
+            
+            const lines = rawText.split('\n').filter(line => line.trim() !== '');
+            let importedCount = 0;
+            let failedCount = 0;
+
+            lines.forEach(line => {
+                const parts = line.split(',').map(p => p.trim());
+                
+                let part1 = '';
+                let part2 = '';
+                let translation = '';
+                let isValidEntry = false;
+
+                // 1. 既存の「3項目: Part1, Part2, 日本語訳」形式のチェック
+                if (parts.length === 3) {
+                    [part1, part2, translation] = parts;
+                    if (part1 && part2 && translation) {
+                        isValidEntry = true;
+                    }
+                } 
+                // 2. 「2項目: ENGLISHWORD, 日本語訳」形式のチェックと自動分割ロジック
+                else if (parts.length === 2) {
+                    const [fullWord, trans] = parts;
+                    
+                    if (fullWord && trans) {
+                        const wordUpper = fullWord.trim().toUpperCase();
+                        const len = wordUpper.length;
+                        
+                        // 単語の長さを基に中央で分割するインデックスを計算 (切り下げ)
+                        const splitIndex = Math.floor(len / 2); 
+                        
+                        part1 = wordUpper.substring(0, splitIndex);
+                        part2 = wordUpper.substring(splitIndex);
+                        translation = trans;
+                        
+                        // 分割後のPart1, Part2が空でないことを確認
+                        if (part1 && part2) {
+                             isValidEntry = true;
+                        }
+                    }
+                } 
+
+                if (isValidEntry) {
+                    editingTheme.words.push({
+                        part1: part1,
+                        part2: part2,
+                        translation: translation
+                    });
+                    importedCount++;
+                } else {
+                    failedCount++;
+                }
+            });
+
+            importListTextarea.value = '';
+            importListButton.disabled = true;
+            updateManagerUI();
+
+            if (importedCount > 0) {
+                showFeedback(`${importedCount}個の単語を取り込みました`, 'success');
+            }
+            if (failedCount > 0) {
+                logFeedback(`${failedCount}行は無効な形式のためスキップされました。`, 'error');
+            }
+        }
+
+
+        // ----------------------------------------------------------------
+        // 6. Home UI 制御
+        // ----------------------------------------------------------------
+
+        function updateThemeListUI() {
+            themeList.innerHTML = ''; 
+            
+            if (allThemes.length === 0) {
+                themeList.innerHTML = '<p class="text-gray-500 text-center py-4">保存されたテーマはありません。</p>';
+                startSelectedThemeButton.disabled = true;
+            }
+
+            allThemes.forEach(theme => {
+                const div = document.createElement('div');
+                div.className = 'theme-item p-3 bg-white rounded-xl shadow-md text-lg flex justify-between items-center';
+                // デフォルトテーマには特別なスタイルを適用しても良いが、今回はボーダーカラーのみで差別化しない。
+                if (theme.id === DEFAULT_THEME_DATA.id) {
+                    div.style.backgroundColor = '#ecfdf5'; // Green-50 for default theme
+                }
+                
+                if (theme.words.length < 5) {
+                    div.classList.add('opacity-50', 'bg-gray-200');
+                    div.title = "5単語未満のため、ゲーム開始はできません。";
+                }
+
+                div.dataset.id = theme.id;
+                
+                const themeNameSpan = document.createElement('span');
+                themeNameSpan.textContent = `${theme.name} (${theme.words.length}単語)`;
+                themeNameSpan.classList.add('flex-grow', 'font-bold', 'hover:text-indigo-600', 'cursor-pointer');
+                themeNameSpan.addEventListener('click', () => handleThemeSelect(theme));
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'flex space-x-2 ml-4';
+
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '編集';
+                editBtn.className = 'text-sm px-3 py-1 bg-yellow-400 rounded hover:bg-yellow-500';
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // テーマ選択とバッティングしないように
+                    editExistingTheme(theme);
+                });
+                
+                // デフォルトテーマは削除不可
+                if (theme.id !== DEFAULT_THEME_DATA.id) { 
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = '削除';
+                    deleteBtn.className = 'text-sm px-3 py-1 bg-red-400 text-white rounded hover:bg-red-500';
+                    deleteBtn.addEventListener('click', (e) => { 
+                        e.stopPropagation();
+                        if(window.confirm(`「${theme.name}」を本当に削除しますか？`)) {
+                            deleteTheme(theme.id);
+                        }
+                    });
+                    actionsDiv.appendChild(deleteBtn);
+                }
+                
+                actionsDiv.appendChild(editBtn);
+                
+                div.appendChild(themeNameSpan);
+                div.appendChild(actionsDiv);
+                
+                themeList.appendChild(div);
+            });
+            
+            if (selectedTheme) {
+                const selectedElement = document.querySelector(`.theme-item[data-id="${selectedTheme.id}"]`);
+                if (selectedElement) {
+                    selectedElement.classList.add('selected');
+                }
+                
+                // Max Question Info Update
+                const maxWords = selectedTheme.words.length;
+                
+                // 最小値と最大値を設定
+                questionLimitInput.min = 5;
+                questionLimitInput.max = maxWords;
+
+                // questionLimitを更新し、UIに反映
+                let currentLimit = parseInt(questionLimitInput.value);
+                if (isNaN(currentLimit) || currentLimit < 5) currentLimit = 5;
+                questionLimit = Math.min(currentLimit, maxWords);
+                questionLimitInput.value = questionLimit;
+                
+                maxQuestionInfo.textContent = `最大出題数: ${maxWords} (現在の設定: ${questionLimit}問)`;
+
+            } else {
+                // Reset info if no theme is selected
+                maxQuestionInfo.textContent = `最大出題数: 0 (選択したテーマに依存)`;
+                questionLimitInput.min = 5;
+                questionLimitInput.max = 5; // Default minimal max
+                questionLimitInput.value = 5; 
+            }
+
+            startSelectedThemeButton.disabled = !selectedTheme || selectedTheme.words.length < 5;
+        }
+        
+        function handleThemeSelect(theme) {
+            document.querySelectorAll('.theme-item').forEach(item => item.classList.remove('selected'));
+
+            if (theme.words.length < 5) {
+                showFeedback('ゲーム開始には5単語以上が必要です。', 'error');
+                selectedTheme = null;
+                startSelectedThemeButton.disabled = true;
+                return;
+            }
+
+            if (selectedTheme && selectedTheme.id === theme.id) {
+                selectedTheme = null;
+                startSelectedThemeButton.disabled = true;
+            } else {
+                selectedTheme = theme;
+                document.querySelector(`.theme-item[data-id="${theme.id}"]`).classList.add('selected');
+                startSelectedThemeButton.disabled = false;
+                
+                // Set initial question limit based on selected theme
+                const maxWords = selectedTheme.words.length;
+                questionLimit = Math.min(questionLimitInput.value || 10, maxWords);
+                questionLimitInput.value = questionLimit;
+            }
+            
+            updateThemeListUI(); // Call this to update the max limit info
+        }
+        
+        // Event Listener for question limit change
+        questionLimitInput.addEventListener('input', () => {
+            let value = parseInt(questionLimitInput.value);
+            const min = parseInt(questionLimitInput.min);
+            const max = parseInt(questionLimitInput.max);
+
+            if (isNaN(value) || value < min) {
+                value = min;
+            } else if (value > max) {
+                value = max;
+            }
+            
+            questionLimitInput.value = value;
+            questionLimit = value;
+
+            if (selectedTheme) {
+                 maxQuestionInfo.textContent = `最大出題数: ${selectedTheme.words.length} (現在の設定: ${questionLimit}問)`;
+            }
+        });
+
+
+        // ----------------------------------------------------------------
+        // 7. ゲーム制御
+        // ----------------------------------------------------------------
+
+        function startGame() {
+            if (!selectedTheme || selectedTheme.words.length < 5) {
+                showFeedback('テーマを選択するか、5単語以上あるテーマを作成してください。', 'error');
+                setView('home');
+                return;
+            }
+            
+            // Get the question limit and perform random selection
+            const limit = parseInt(questionLimitInput.value) || 5; // 最小5問
+            const availableWords = selectedTheme.words;
+            
+            let wordsForGame;
+            if (limit >= availableWords.length) {
+                // Limit >= total words: use all words
+                wordsForGame = availableWords;
+            } else {
+                // Randomly select the required number of words
+                const shuffledWords = shuffle([...availableWords]); // Use a copy
+                wordsForGame = shuffledWords.slice(0, limit);
+            }
+            
+            // Map the selected words to game data structure
+            // index + 1 をIDにすることで、毎回IDをリセットする
+            gameWordData = wordsForGame.map((word, index) => ({
+                part1: word.part1,
+                part2: word.part2,
+                full: `${word.part1}${word.part2}`, 
+                translation: word.translation,
+                id: index + 1 
+            }));
+
+            misses = 0;
+            completedCount = 0;
+            step2MatchCount = 0;
+            isGameActive = true;
+
+            // 1. プレイ中はボタンを非表示
+            gameButtonWrapper.style.display = 'none';
+
+            gameScoreBoard.style.display = 'none'; // ゲーム開始時は非表示
+            finalScoreContainer.innerHTML = ''; // スコアコンテナをリセット
+            step2Section.style.display = 'none';
+
+            setView('game');
+            initializeStep1();
+            logFeedback(`ゲームスタート！出題数: ${gameWordData.length}問`, 'info');
+        }
+
+        function finalResult() {
+            isGameActive = false;
+            
+            // 1. ゲーム終了後にはボタンを表示
+            gameButtonWrapper.style.display = 'flex';
+            
+            // 2. ミスの回数表示を動的に作成し、完成ペアの下に移動
+            const finalScoreHTML = `
+                <div class="final-message flex justify-center items-center p-4 bg-orange-100 rounded-xl shadow-lg mt-8">
+                    <p class="text-3xl font-semibold text-gray-700">最終ミス回数: <span class="text-5xl text-red-600 font-bold">${misses}</span>回</p>
+                </div>
+            `;
+            
+            finalScoreContainer.innerHTML = finalScoreHTML;
+
+            // STEP1のコンテンツは非表示のまま
+            step1Content.style.display = 'none';
+            
+            // STEP2の操作エリア（英単語と日本語訳のピースエリア）を非表示にする
+            step2PairArea.style.display = 'none'; 
+
+            // STEP2セクション全体（完成ペアリストを含む）は表示したままにする
+            step2Section.style.display = 'block'; 
+            
+            logFeedback(`ゲームクリア！ミスの回数: ${misses}回`, 'final');
+            
+            gameActionButton.textContent = 'ホームへ';
+        }
+
+        function getPartRole(text) {
+            for (const data of gameWordData) {
+                if (data.part1 === text) return 1; 
+                if (data.part2 === text) return 2; 
+            }
+            return 0; 
+        }
+
+        function initializeStep1() {
+            partsArea.innerHTML = ''; 
+            completedWordsAreaStep1.innerHTML = '';
+            step1Content.style.display = 'block';
+            
+            let allParts = [];
+            gameWordData.forEach(data => {
+                allParts.push({ text: data.part1, id: data.id, role: getPartRole(data.part1) });
+                allParts.push({ text: data.part2, id: data.id, role: getPartRole(data.part2) });
+            });
+
+            shuffle(allParts).forEach(part => {
+                const div = document.createElement('div');
+                div.className = 'word-part px-4 py-3 bg-orange-500 text-white font-extrabold rounded-xl hover:bg-orange-600 text-5xl sm:text-6xl shadow-xl border-4 border-transparent';
+                div.textContent = part.text;
+                div.dataset.id = part.id;
+                div.dataset.role = part.role; 
+                div.addEventListener('click', handlePartClick);
+                partsArea.appendChild(div);
+            });
+            
+            slottedParts = [null, null]; 
+            updateVisualSlots();
+        }
+        
+        function handlePartClick(event) {
+            if (!isGameActive || isChecking || completedCount === gameWordData.length) return;
+            
+            const partElement = event.target;
+            const partRole = parseInt(partElement.dataset.role); 
+
+            const partData = {
+                text: partElement.textContent,
+                id: parseInt(partElement.dataset.id),
+                element: partElement,
+                role: partRole
+            };
+            
+            const slotIndex = partRole - 1; 
+            
+            if (slottedParts[slotIndex] && slottedParts[slotIndex].element === partElement) {
+                // 1. ピースが既にスロットにあり、それをクリックした場合 (選択解除)
+                slottedParts[slotIndex] = null;
+                partsArea.appendChild(partElement);
+            } 
+            else if (!slottedParts[slotIndex]) {
+                // 2. スロットが空で、ピースをクリックした場合 (配置)
+                slottedParts[slotIndex] = partData;
+                partElement.remove();
+            }
+            else {
+                // 3. スロットが埋まっている状態で、別のピースをクリックした場合 (競合/ミス発生)
+                
+                misses++;
+                // 修正箇所: 統一されたエラーメッセージ
+                showFeedback(`間違い！`, 'error'); 
+
+                // *** 競合リセットロジックの適用 ***
+                // 1. 既にスロットに入っているパーツをインベントリに戻す
+                const existingPartElement = slottedParts[slotIndex].element;
+                partsArea.appendChild(existingPartElement);
+                existingPartElement.classList.remove('selected');
+
+                // 2. スロットを空にする (両方のパーツが手持ちに戻った状態)
+                slottedParts[slotIndex] = null;
+
+                // 3. 今クリックしたパーツ (partElement) は元々インベントリにあるので、そのまま。
+                
+                // エラー表示を視覚的に行う（今クリックされたパーツを一瞬赤くする）
+                partElement.classList.add('incorrect-part-temp');
+
+                // UIを更新 (partsAreaに戻したピースを反映)
+                updateVisualSlots();
+
+                setTimeout(() => {
+                    partElement.classList.remove('incorrect-part-temp');
+                }, 500);
+
+                return;
+            }
+            
+            updateVisualSlots();
+
+            if (slottedParts[0] && slottedParts[1]) {
+                checkCombination();
+            }
+        }
+        
+        function updateVisualSlots() {
+            targetSlots.forEach((slot, index) => {
+                const part = slottedParts[index];
+                
+                // スロット内のコンテンツの寄せを変更 (Flexboxのjustify-*を使用)
+                slot.classList.remove('justify-center', 'justify-start', 'justify-end'); 
+
+                // 既存のコンテンツをクリア
+                slot.innerHTML = ''; 
+
+                if (part) {
+                    // Part 1 (index 0) は右寄せ (justify-end)、Part 2 (index 1) は左寄せ (justify-start)
+                    slot.classList.add(index === 0 ? 'justify-end' : 'justify-start');
+                    
+                    const content = document.createElement('span');
+                    content.textContent = part.text;
+                    // 単語の連結を視覚的に強調するため、マージンを設定
+                    content.className = index === 0 ? 'mr-1' : 'ml-1'; 
+                    slot.appendChild(content);
+                } else {
+                    // スロットが空の場合は中央寄せに戻す
+                    slot.classList.add('justify-center');
+                    
+                    const placeholder = document.createElement('span');
+                    placeholder.textContent = '...';
+                    placeholder.className = ''; 
+                    slot.appendChild(placeholder);
+                }
+                
+                slot.classList.remove('correct-slot', 'incorrect-slot');
+            });
+            
+            document.querySelectorAll('.word-part').forEach(p => p.classList.remove('selected', 'border-4', 'border-red-500', 'incorrect-part-temp'));
+        }
+        
+        async function checkCombination() {
+            isChecking = true;
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const part1 = slottedParts[0]; 
+            const part2 = slottedParts[1]; 
+            
+            if (!part1 || !part2) {
+                isChecking = false;
+                return;
+            }
+
+            let isCorrect = (part1.id === part2.id);
+
+            if (isCorrect) {
+                targetSlots.forEach(slot => slot.classList.add('correct-slot'));
+                showFeedback(`単語完成！`, 'success'); 
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const matchedWord = gameWordData.find(data => data.id === part1.id);
+                handleSuccess(matchedWord);
+            } else {
+                targetSlots.forEach(slot => slot.classList.add('incorrect-slot'));
+                showFeedback(`間違い！`, 'error');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                handleError();
+            }
+
+            isChecking = false;
+        }
+
+        function handleSuccess(wordData) {
+            completedCount++;
+
+            const div = document.createElement('div');
+            div.className = 'completed-word px-4 py-3 bg-yellow-400 text-gray-800 font-extrabold rounded-xl hover:bg-yellow-500 text-4xl sm:text-5xl shadow-xl w-full border-4 border-transparent';
+            div.textContent = wordData.full;
+            div.dataset.id = wordData.id;
+            completedWordsAreaStep1.appendChild(div); 
+            
+            slottedParts = [null, null];
+            updateVisualSlots();
+            
+            if (completedCount === gameWordData.length) {
+                logFeedback("全単語完成！Step 2へ進みます。", 'success');
+                step1Content.style.display = 'none';
+                initializeStep2();
+            }
+        }
+
+        function handleError() {
+            misses++;
+
+            targetSlots.forEach((slot, index) => {
+                if (slottedParts[index]) {
+                    const part = slottedParts[index];
+                    partsArea.appendChild(part.element);
+                }
+            });
+
+            slottedParts = [null, null];
+            updateVisualSlots();
+        }
+
+        let selectedWord = null;
+        let selectedTranslation = null;
+
+        function initializeStep2() {
+            step2Section.style.display = 'block';
+            gameScoreBoard.style.display = 'none'; 
+            finalScoreContainer.innerHTML = '';
+            step2PairArea.style.display = 'flex'; // STEP2操作エリアを表示
+            completedWordsAreaStep2.innerHTML = ''; 
+            translationArea.innerHTML = '';
+            finalPairsDisplay.innerHTML = '';
+
+            const wordsToMove = Array.from(completedWordsAreaStep1.children);
+            
+            shuffle(wordsToMove).forEach(word => {
+                word.addEventListener('click', handleStep2Click);
+                word.className = 'completed-word px-4 py-3 bg-yellow-400 text-gray-800 font-extrabold rounded-xl hover:bg-yellow-500 text-4xl sm:text-5xl shadow-xl w-full border-4 border-transparent';
+                completedWordsAreaStep2.appendChild(word);
+            });
+
+            let translations = gameWordData.map(data => ({ text: data.translation, id: data.id }));
+            shuffle(translations).forEach(trans => {
+                const div = document.createElement('div');
+                div.className = 'translation-part px-4 py-3 bg-green-500 text-white font-extrabold rounded-xl hover:bg-green-600 text-4xl sm:text-5xl shadow-xl w-full border-4 border-transparent';
+                div.textContent = trans.text;
+                div.dataset.id = trans.id;
+                div.addEventListener('click', handleStep2Click);
+                translationArea.appendChild(div);
+            });
+            
+            logFeedback("Step 2開始: 完成した単語と、正しい日本語訳を組み合わせよう！", 'info');
+        }
+
+        function handleStep2Click(event) {
+            if (!isGameActive) return;
+
+            const element = event.target;
+            const isWord = element.classList.contains('completed-word');
+            
+            if (element.classList.contains('selected')) {
+                element.classList.remove('selected'); 
+                if (isWord) {
+                    selectedWord = null;
+                } else {
+                    selectedTranslation = null;
+                }
+                return;
+            }
+
+            if (isWord) {
+                if (selectedWord) selectedWord.classList.remove('selected');
+                selectedWord = element;
+                selectedWord.classList.add('selected');
+            } else {
+                if (selectedTranslation) selectedTranslation.classList.remove('selected');
+                selectedTranslation = element;
+                selectedTranslation.classList.add('selected');
+            }
+
+            if (selectedWord && selectedTranslation) {
+                checkTranslationMatch();
+            }
+        }
+
+        async function checkTranslationMatch() {
+            const wordId = parseInt(selectedWord.dataset.id);
+            const translationId = parseInt(selectedTranslation.dataset.id);
+
+            const currentWord = selectedWord;
+            const currentTranslation = selectedTranslation;
+            
+            if (wordId === translationId) {
+                step2MatchCount++;
+                showFeedback(`ペア成立！🎉`, 'success');
+                
+                await new Promise(resolve => setTimeout(resolve, 1500)); 
+
+                const setDiv = document.createElement('div');
+                setDiv.textContent = `${currentWord.textContent} = ${currentTranslation.textContent}`;
+                setDiv.className = 'bg-gray-200 p-4 rounded-lg my-1 font-extrabold text-left text-3xl sm:text-4xl';
+                finalPairsDisplay.appendChild(setDiv);
+
+                currentWord.remove();
+                currentTranslation.remove();
+                
+                if (step2MatchCount === gameWordData.length) {
+                    finalResult(); 
+                }
+            } else {
+                misses++;
+                showFeedback(`間違い！`, 'error');
+                
+                await new Promise(resolve => setTimeout(resolve, 1500)); 
+                
+                currentWord.classList.remove('selected');
+                currentTranslation.classList.remove('selected');
+            }
+            
+            selectedWord = null;
+            selectedTranslation = null;
+        }
+
+
+        // ----------------------------------------------------------------
+        // 8. イベントリスナーと初期化
+        // ----------------------------------------------------------------
+
+        // Home View Listeners
+        startSelectedThemeButton.addEventListener('click', startGame);
+        newThemeButton.addEventListener('click', () => {
+            setupNewTheme();
+            setView('manager');
+        });
+
+        // Manager View Listeners
+        addWordButton.addEventListener('click', addWordToTheme);
+        saveThemeButton.addEventListener('click', () => saveTheme(editingTheme));
+        backToHomeButton.addEventListener('click', () => setView('home'));
+        
+        // Import List Listeners
+        importListButton.addEventListener('click', handleImportList);
+
+
+        // Game View Listener
+        gameActionButton.addEventListener('click', () => setView('home'));
+
+        window.onload = () => {
+             loadThemes();
+             setView('home');
+        };
+    </script>
+</body>
+</html>
