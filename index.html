@@ -39,9 +39,10 @@
         
         .correct-slot { background-color: #34d399 !important; } /* Tailwind green-400 */
         .incorrect-slot { background-color: #f87171 !important; } /* Tailwind red-400 */
+        /* エラー時に一時的に赤くするピースのスタイル */
         .incorrect-part-temp { background-color: #fca5a5 !important; } /* Tailwind red-300 */
 
-        /* ターゲットスロットのスタイル調整 (Step 1) */
+        /* ターゲットスロットのスタイル調整 */
         .target-slot {
             transition: background-color 0.2s;
             line-height: 5rem; 
@@ -50,7 +51,6 @@
         
         /* ゲームクリア/オーバー時のメッセージ表示用 */
         .final-message {
-            /* スコアを完成ペアの下に移動するため、スタイルを調整 */
             padding: 1rem;
             margin-top: 1rem;
             font-size: 1.5rem; 
@@ -58,7 +58,7 @@
             text-align: center;
         }
 
-        /* ユーザー要望2: マイナスマージンを適用して上部の隙間を最小化 */
+        /* マイナスマージンを適用して上部の隙間を最小化 */
         .negative-mt-4 { margin-top: -1rem; } 
         
         /* Tema List specific */
@@ -88,7 +88,7 @@
 
             <div id="theme-list" class="flex flex-col space-y-3 p-4 bg-gray-50 rounded-xl min-h-40 shadow-inner">
                 <p class="text-gray-500 text-center py-10" id="loading-message">テーマをロード中...</p>
-                </div>
+            </div>
             
             <div id="question-count-setting" class="p-4 bg-indigo-50 rounded-xl shadow-inner border-t-4 border-indigo-400">
                 <label for="question-limit" class="block text-lg font-bold text-gray-700">出題数 (問題)</label>
@@ -232,10 +232,11 @@
         const LOCAL_STORAGE_KEY = 'word_split_challenge_themes';
 
         // ----------------------------------------------------------------
-        // NEW: デフォルトテーマデータ (中1英単語セット)
+        // NEW: デフォルトテーマデータ群 (中1英単語セット & 歴史人物)
         // ----------------------------------------------------------------
-        // 単語は自動分割ロジック (単語長/2を切り捨て) に基づいて分割されています
-        const DEFAULT_THEME_DATA = {
+        
+        // 既存の「中1英単語セット」テーマ
+        const DEFAULT_THEME_DATA_EIGO = {
             id: 'default_chu1_eigo',
             name: '中1英単語セット',
             createdAt: new Date().toISOString(),
@@ -365,11 +366,77 @@
             ]
         };
 
+        // 新しく追加された「歴史人物・用語」テーマ
+        const DEFAULT_THEME_DATA_HISTORY = {
+            id: 'default_rekishi_jinbutsu',
+            name: '歴史人物・用語',
+            createdAt: new Date().toISOString(),
+            words: [
+                // 人物名（全角文字）は、中央で自動分割するロジックに基づいてPart1/Part2に分割しています。
+                { part1: '卑', part2: '弥呼', translation: '邪馬台国の女王' },
+                { part1: '聖徳', part2: '太子', translation: '冠位十二階' },
+                { part1: '鑑', part2: '真', translation: '遣唐使船で来日' },
+                { part1: '山上', part2: '憶良', translation: '貧窮問答歌' },
+                { part1: '坂上田', part2: '村麻呂', translation: '蝦夷と戦った征夷大将軍' },
+                { part1: '藤原', part2: '頼通', translation: '平等院鳳凰堂' },
+                { part1: '平', part2: '将門', translation: '新皇と名乗り関東で反乱' },
+                { part1: '最', part2: '澄', translation: '比叡山・延暦寺・天台宗' },
+                { part1: '空', part2: '海', translation: '高野山・金剛峯寺・真言宗' },
+                { part1: '紫', part2: '式部', translation: '源氏物語' },
+                { part1: '清少', part2: '納言', translation: '枕草子' },
+                { part1: '紀', part2: '貫之', translation: '古今和歌集の選者' },
+                { part1: '平', part2: '清盛', translation: '太政大臣・武士で政治の実権' },
+                { part1: '源', part2: '頼朝', translation: '征夷大将軍・鎌倉幕府を開いた' },
+                { part1: '後鳥', part2: '羽上皇', translation: '承久の乱で敗れ、隠岐に流された' },
+                { part1: '北条', part2: '泰時', translation: '御成敗式目' },
+                { part1: '後醍', part2: '醐天皇', translation: '建武の新政' },
+                { part1: '足利', part2: '尊氏', translation: '征夷大将軍・京都に幕府を開いた' },
+                { part1: '足利', part2: '義満', translation: '金閣寺を建てた' },
+                { part1: '足利', part2: '義政', translation: '銀閣寺を建てた' },
+                { part1: '尚', part2: '氏', translation: '琉球王国' },
+                { part1: '法', part2: '然', translation: '浄土宗' },
+                { part1: '親', part2: '鸞', translation: '浄土真宗' },
+                { part1: '吉田', part2: '兼好', translation: '徒然草' },
+                { part1: '雪', part2: '舟', translation: '水墨画' },
+                { part1: 'フランシコ', part2: '・ザビエル', translation: 'キリスト教・宣教師' },
+                { part1: '織田', part2: '信長', translation: '桶狭間の戦い・今川義元を破った' },
+                { part1: '豊臣', part2: '秀吉', translation: '1590年に全国を統一' },
+                { part1: '千', part2: '利休', translation: '茶の湯' },
+                { part1: '徳川', part2: '家康', translation: '江戸幕府を開いた' },
+                { part1: '徳川', part2: '家光', translation: '参勤交代' },
+                { part1: '徳川', part2: '綱吉', translation: '生類憐みの令' },
+                { part1: '徳川', part2: '吉宗', translation: '享保の改革' },
+                { part1: '松平', part2: '定信', translation: '寛政の改革' },
+                { part1: '水野', part2: '忠邦', translation: '天保の改革' },
+                { part1: '井原', part2: '西鶴', translation: '浮世草子「好色一代男」' },
+                { part1: '近松門', part2: '左衛門', translation: '人形浄瑠璃「曽根崎心中」' },
+                { part1: '歌川', part2: '広重', translation: '浮世絵「東海道五十三次」' },
+                { part1: '葛飾', part2: '北斎', translation: '風景画「富嶽三十六景」' },
+                { part1: '松尾', part2: '芭蕉', translation: '紀行文「おくのほそ道」' },
+                { part1: '本居', part2: '宣長', translation: '古事記伝' },
+                { part1: '伊能', part2: '忠敬', translation: '全国を測量' },
+                { part1: 'ペ', part2: 'リー', translation: '浦賀沖に来航・開国をせまった' },
+                { part1: '井伊', part2: '直弼', translation: '日米修好通商条約を締結' },
+                { part1: '徳川', part2: '慶喜', translation: '大政奉還' },
+                { part1: '福沢', part2: '諭吉', translation: '「学問のすすめ」' },
+                { part1: '西郷', part2: '隆盛', translation: '征韓論で政府を去り、鹿児島で挙兵' },
+                { part1: '伊藤', part2: '博文', translation: '初代の内閣総理大臣' },
+                { part1: '小村', part2: '寿太郎', translation: '関税自主権の回復' },
+                { part1: '田中', part2: '正造', translation: '足尾鉱毒事件' },
+            ]
+        };
+
+        // 全てのデフォルトテーマを格納する配列
+        const ALL_DEFAULT_THEMES = [
+            DEFAULT_THEME_DATA_EIGO,
+            DEFAULT_THEME_DATA_HISTORY 
+        ];
+
 
         // ----------------------------------------------------------------
         // 2. DOM要素とアプリケーション状態
         // ----------------------------------------------------------------
-
+        
         // UI Views
         const homeView = document.getElementById('home-view');
         const themeManagerView = document.getElementById('theme-manager-view');
@@ -530,21 +597,29 @@
                 const data = localStorage.getItem(LOCAL_STORAGE_KEY);
                 allThemes = data ? JSON.parse(data) : [];
                 
-                // NEW: Default Theme Check and Initialization
-                const defaultThemeExists = allThemes.some(t => t.id === DEFAULT_THEME_DATA.id);
+                let shouldSave = false;
+
+                // NEW: Default Theme Check and Initialization (複数のテーマに対応)
+                ALL_DEFAULT_THEMES.forEach(defaultTheme => {
+                    const defaultThemeExists = allThemes.some(t => t.id === defaultTheme.id);
+                    
+                    if (!defaultThemeExists) {
+                        // Add the default theme to the start of the list
+                        allThemes.unshift(defaultTheme); 
+                        shouldSave = true;
+                        logFeedback(`Default theme "${defaultTheme.name}" added.`, 'local');
+                    }
+                });
                 
-                if (!defaultThemeExists) {
-                    // Add the default theme to the start of the list
-                    allThemes.unshift(DEFAULT_THEME_DATA); 
-                    // Save the updated list with the new default theme
+                if (shouldSave) {
+                    // 最新の状態（デフォルトテーマを含む）を保存
                     saveThemesToLocal(); 
-                    logFeedback('Default theme "中1英単語セット" added and saved.', 'local');
                 }
                 
-                logFeedback(`Loaded ${allThemes.length} themes from localStorage.`, 'local');
+                logFeedback(`Loaded ${allThemes.length} themes (total) from localStorage.`, 'local');
             } catch (e) {
                 logFeedback(`Error loading from localStorage: ${e.message}`, 'error');
-                allThemes = [DEFAULT_THEME_DATA]; // Fallback to only the default theme
+                allThemes = [...ALL_DEFAULT_THEMES]; // Fallback to only the default themes
                 saveThemesToLocal(); 
                 showFeedback('データのロード中にエラーが発生しました。デフォルトテーマで開始します。', 'error');
             }
@@ -577,6 +652,12 @@
         }
 
         function deleteTheme(themeId) {
+            // デフォルトテーマの削除は許可しない
+            if (ALL_DEFAULT_THEMES.some(t => t.id === themeId)) {
+                showFeedback('このテーマは削除できません。', 'error');
+                return;
+            }
+
             const initialLength = allThemes.length;
             allThemes = allThemes.filter(t => t.id !== themeId);
             
@@ -706,14 +787,15 @@
                     const [fullWord, trans] = parts;
                     
                     if (fullWord && trans) {
-                        const wordUpper = fullWord.trim().toUpperCase();
-                        const len = wordUpper.length;
+                        // 文字列を大文字化せず、そのままの文字数で処理
+                        const word = fullWord.trim();
+                        const len = word.length;
                         
                         // 単語の長さを基に中央で分割するインデックスを計算 (切り下げ)
                         const splitIndex = Math.floor(len / 2); 
                         
-                        part1 = wordUpper.substring(0, splitIndex);
-                        part2 = wordUpper.substring(splitIndex);
+                        part1 = word.substring(0, splitIndex);
+                        part2 = word.substring(splitIndex);
                         translation = trans;
                         
                         // 分割後のPart1, Part2が空でないことを確認
@@ -725,7 +807,8 @@
 
                 if (isValidEntry) {
                     editingTheme.words.push({
-                        part1: part1,
+                        // Part1, Part2はtoUpperCase()せずに、元の文字列の形式を維持
+                        part1: part1, 
                         part2: part2,
                         translation: translation
                     });
@@ -763,9 +846,12 @@
             allThemes.forEach(theme => {
                 const div = document.createElement('div');
                 div.className = 'theme-item p-3 bg-white rounded-xl shadow-md text-lg flex justify-between items-center';
-                // デフォルトテーマには特別なスタイルを適用しても良いが、今回はボーダーカラーのみで差別化しない。
-                if (theme.id === DEFAULT_THEME_DATA.id) {
-                    div.style.backgroundColor = '#ecfdf5'; // Green-50 for default theme
+                
+                // デフォルトテーマの背景色を変更
+                if (theme.id === DEFAULT_THEME_DATA_EIGO.id) {
+                    div.style.backgroundColor = '#ecfdf5'; // Green-50 for English
+                } else if (theme.id === DEFAULT_THEME_DATA_HISTORY.id) {
+                    div.style.backgroundColor = '#fef3c7'; // Yellow-100 for History
                 }
                 
                 if (theme.words.length < 5) {
@@ -792,7 +878,7 @@
                 });
                 
                 // デフォルトテーマは削除不可
-                if (theme.id !== DEFAULT_THEME_DATA.id) { 
+                if (!ALL_DEFAULT_THEMES.some(t => t.id === theme.id)) { 
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = '削除';
                     deleteBtn.className = 'text-sm px-3 py-1 bg-red-400 text-white rounded hover:bg-red-500';
@@ -904,27 +990,24 @@
                 return;
             }
             
-            // Get the question limit and perform random selection
-            const limit = parseInt(questionLimitInput.value) || 5; // 最小5問
+            const limit = parseInt(questionLimitInput.value) || 5; 
             const availableWords = selectedTheme.words;
             
             let wordsForGame;
             if (limit >= availableWords.length) {
-                // Limit >= total words: use all words
                 wordsForGame = availableWords;
             } else {
-                // Randomly select the required number of words
-                const shuffledWords = shuffle([...availableWords]); // Use a copy
+                const shuffledWords = shuffle([...availableWords]); 
                 wordsForGame = shuffledWords.slice(0, limit);
             }
             
             // Map the selected words to game data structure
-            // index + 1 をIDにすることで、毎回IDをリセットする
             gameWordData = wordsForGame.map((word, index) => ({
                 part1: word.part1,
                 part2: word.part2,
                 full: `${word.part1}${word.part2}`, 
                 translation: word.translation,
+                // IDはStep 2で使用するために、ここで一意に設定
                 id: index + 1 
             }));
 
@@ -933,11 +1016,10 @@
             step2MatchCount = 0;
             isGameActive = true;
 
-            // 1. プレイ中はボタンを非表示
             gameButtonWrapper.style.display = 'none';
 
-            gameScoreBoard.style.display = 'none'; // ゲーム開始時は非表示
-            finalScoreContainer.innerHTML = ''; // スコアコンテナをリセット
+            gameScoreBoard.style.display = 'none'; 
+            finalScoreContainer.innerHTML = ''; 
             step2Section.style.display = 'none';
 
             setView('game');
@@ -948,10 +1030,8 @@
         function finalResult() {
             isGameActive = false;
             
-            // 1. ゲーム終了後にはボタンを表示
             gameButtonWrapper.style.display = 'flex';
             
-            // 2. ミスの回数表示を動的に作成し、完成ペアの下に移動
             const finalScoreHTML = `
                 <div class="final-message flex justify-center items-center p-4 bg-orange-100 rounded-xl shadow-lg mt-8">
                     <p class="text-3xl font-semibold text-gray-700">最終ミス回数: <span class="text-5xl text-red-600 font-bold">${misses}</span>回</p>
@@ -960,13 +1040,8 @@
             
             finalScoreContainer.innerHTML = finalScoreHTML;
 
-            // STEP1のコンテンツは非表示のまま
             step1Content.style.display = 'none';
-            
-            // STEP2の操作エリア（英単語と日本語訳のピースエリア）を非表示にする
             step2PairArea.style.display = 'none'; 
-
-            // STEP2セクション全体（完成ペアリストを含む）は表示したままにする
             step2Section.style.display = 'block'; 
             
             logFeedback(`ゲームクリア！ミスの回数: ${misses}回`, 'final');
@@ -975,11 +1050,12 @@
         }
 
         function getPartRole(text) {
+            // 文字列による判定: Part 1 または Part 2 のどちらに使われる単語かを特定する
             for (const data of gameWordData) {
                 if (data.part1 === text) return 1; 
                 if (data.part2 === text) return 2; 
             }
-            return 0; 
+            return 0; // 見つからない場合 (本来は発生しないはず)
         }
 
         function initializeStep1() {
@@ -988,7 +1064,10 @@
             step1Content.style.display = 'block';
             
             let allParts = [];
+            
+            // 単語データからパーツを生成
             gameWordData.forEach(data => {
+                // ここでIDではなく、単語データを渡すことで、getPartRoleの判定が厳密になる
                 allParts.push({ text: data.part1, id: data.id, role: getPartRole(data.part1) });
                 allParts.push({ text: data.part2, id: data.id, role: getPartRole(data.part2) });
             });
@@ -997,7 +1076,8 @@
                 const div = document.createElement('div');
                 div.className = 'word-part px-4 py-3 bg-orange-500 text-white font-extrabold rounded-xl hover:bg-orange-600 text-5xl sm:text-6xl shadow-xl border-4 border-transparent';
                 div.textContent = part.text;
-                div.dataset.id = part.id;
+                // 注意: ここでセットされるIDは、Step 1の結合チェックには使用せず、Step 2の日本語訳チェックにのみ使用
+                div.dataset.id = part.id; 
                 div.dataset.role = part.role; 
                 div.addEventListener('click', handlePartClick);
                 partsArea.appendChild(div);
@@ -1012,55 +1092,50 @@
             
             const partElement = event.target;
             const partRole = parseInt(partElement.dataset.role); 
+            
+            if (partRole === 0) return; // 不正なパーツクリック防止
 
             const partData = {
                 text: partElement.textContent,
-                id: parseInt(partElement.dataset.id),
+                id: parseInt(partElement.dataset.id), // Step 2で使用
                 element: partElement,
                 role: partRole
             };
             
             const slotIndex = partRole - 1; 
             
+            // 既にピースがスロットにあり、それをクリックした場合 (選択解除)
             if (slottedParts[slotIndex] && slottedParts[slotIndex].element === partElement) {
-                // 1. ピースが既にスロットにあり、それをクリックした場合 (選択解除)
                 slottedParts[slotIndex] = null;
                 partsArea.appendChild(partElement);
             } 
+            // スロットが空で、ピースをクリックした場合 (配置)
             else if (!slottedParts[slotIndex]) {
-                // 2. スロットが空で、ピースをクリックした場合 (配置)
                 slottedParts[slotIndex] = partData;
                 partElement.remove();
             }
+            // スロットが埋まっている状態で、別のピースをクリックした場合 (競合/ミス発生)
             else {
-                // 3. スロットが埋まっている状態で、別のピースをクリックした場合 (競合/ミス発生)
-                
-                misses++;
-                // 修正箇所: 統一されたエラーメッセージ
-                showFeedback(`間違い！`, 'error'); 
+                // **競合時はミスとしてカウントしない (UX向上)**
 
-                // *** 競合リセットロジックの適用 ***
-                // 1. 既にスロットに入っているパーツをインベントリに戻す
+                // 既にスロットに入っているパーツをインベントリに戻す
                 const existingPartElement = slottedParts[slotIndex].element;
                 partsArea.appendChild(existingPartElement);
                 existingPartElement.classList.remove('selected');
-
-                // 2. スロットを空にする (両方のパーツが手持ちに戻った状態)
-                slottedParts[slotIndex] = null;
-
-                // 3. 今クリックしたパーツ (partElement) は元々インベントリにあるので、そのまま。
                 
-                // エラー表示を視覚的に行う（今クリックされたパーツを一瞬赤くする）
-                partElement.classList.add('incorrect-part-temp');
+                // スロットに新しいパーツを配置
+                slottedParts[slotIndex] = partData;
+                partElement.remove();
 
-                // UIを更新 (partsAreaに戻したピースを反映)
+                // UIを更新
                 updateVisualSlots();
+                
+                // 新しいピースが配置されたため、結合チェックを行う
+                if (slottedParts[0] && slottedParts[1]) {
+                    checkCombination();
+                }
 
-                setTimeout(() => {
-                    partElement.classList.remove('incorrect-part-temp');
-                }, 500);
-
-                return;
+                return; 
             }
             
             updateVisualSlots();
@@ -1105,8 +1180,10 @@
             document.querySelectorAll('.word-part').forEach(p => p.classList.remove('selected', 'border-4', 'border-red-500', 'incorrect-part-temp'));
         }
         
+        // **修正箇所**: 文字列による正誤判定ロジック
         async function checkCombination() {
             isChecking = true;
+            targetSlots.forEach(slot => slot.classList.remove('correct-slot', 'incorrect-slot'));
             await new Promise(resolve => setTimeout(resolve, 500));
 
             const part1 = slottedParts[0]; 
@@ -1116,17 +1193,25 @@
                 isChecking = false;
                 return;
             }
-
-            let isCorrect = (part1.id === part2.id);
+            
+            // 結合文字列で判定するロジック
+            const combinedText = part1.text + part2.text;
+            
+            // gameWordData全体から、結合文字列と一致する単語を探す
+            const matchedWord = gameWordData.find(data => data.full === combinedText);
+            
+            let isCorrect = !!matchedWord; // マッチした単語が見つかれば正解
 
             if (isCorrect) {
                 targetSlots.forEach(slot => slot.classList.add('correct-slot'));
                 showFeedback(`単語完成！`, 'success'); 
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                const matchedWord = gameWordData.find(data => data.id === part1.id);
+                // 正解が見つかった単語データを使って処理を継続 (Step 2のIDも含む)
                 handleSuccess(matchedWord);
             } else {
+                // 不正解の場合はミスをカウント
+                misses++;
                 targetSlots.forEach(slot => slot.classList.add('incorrect-slot'));
                 showFeedback(`間違い！`, 'error');
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -1140,11 +1225,17 @@
             completedCount++;
 
             const div = document.createElement('div');
+            // wordDataはmatchedWordを使用するため、正しいIDが反映される
             div.className = 'completed-word px-4 py-3 bg-yellow-400 text-gray-800 font-extrabold rounded-xl hover:bg-yellow-500 text-4xl sm:text-5xl shadow-xl w-full border-4 border-transparent';
             div.textContent = wordData.full;
-            div.dataset.id = wordData.id;
+            // 完成した単語には、一致した単語のIDを付与する (Step 2で使用)
+            div.dataset.id = wordData.id; 
             completedWordsAreaStep1.appendChild(div); 
             
+            // 使用したパーツをDOMから完全に削除
+            slottedParts[0].element.remove();
+            slottedParts[1].element.remove();
+
             slottedParts = [null, null];
             updateVisualSlots();
             
@@ -1156,8 +1247,7 @@
         }
 
         function handleError() {
-            misses++;
-
+            // ミスが発生した場合、スロットのパーツを手札に戻す
             targetSlots.forEach((slot, index) => {
                 if (slottedParts[index]) {
                     const part = slottedParts[index];
@@ -1240,6 +1330,7 @@
             const currentWord = selectedWord;
             const currentTranslation = selectedTranslation;
             
+            // Step 2はIDによる判定を維持
             if (wordId === translationId) {
                 step2MatchCount++;
                 showFeedback(`ペア成立！🎉`, 'success');
